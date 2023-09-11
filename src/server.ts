@@ -221,7 +221,7 @@ class AgroCityWebsocketServer {
     }
 
     public listen() {
-        this.server?.listen(8081, () => {
+        this.server?.listen(8080, '0.0.0.0', () => {
             console.log('SERVER STARTED LISTENING!');
         });
     }
