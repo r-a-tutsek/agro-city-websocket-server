@@ -28,7 +28,7 @@ class AgroCityWebsocketServer {
     private commonService: CommonService;
 
     public constructor() {
-        this.rabbitMqHostUrl = 'amqp://localhost';
+        this.rabbitMqHostUrl = 'amqp://172.17.0.3';
     }
 
     public async initialize() {
