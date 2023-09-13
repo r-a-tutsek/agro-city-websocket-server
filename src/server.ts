@@ -14,8 +14,6 @@ import DeviceService from "./app/services/device.service";
 
 class AgroCityWebsocketServer {
 
-    private readonly rabbitMqHostUrl: string;
-
     private server: Server | undefined;
     private webSocketServer: WebSocket.Server | undefined;
    
@@ -27,13 +25,13 @@ class AgroCityWebsocketServer {
     private deviceService: DeviceService;
     private commonService: CommonService;
 
-    public constructor() {
-        this.rabbitMqHostUrl = 'amqp://172.17.0.3';
-    }
-
     public async initialize() {
         try {
             dotenv.config();
+
+            if (!process?.env?.RABBIT_MQ_HOST_URL) {
+                throw 'Missing Rabbit MQ Host url!';
+            }
 
             this.mysqlConnector = container.resolve(MysqlConnector);
             this.cryptoService = container.resolve(CryptoService);
@@ -44,7 +42,7 @@ class AgroCityWebsocketServer {
             this.webSocketServer = new WebSocket.Server({ noServer: true });
 
             this.connectionPool = await this.mysqlConnector.createPool();
-            this.rabbitMqConnection = await connect(this.rabbitMqHostUrl);
+            this.rabbitMqConnection = await connect(process?.env?.RABBIT_MQ_HOST_URL);
         } catch (exception) {
             console.log(exception);
         }
