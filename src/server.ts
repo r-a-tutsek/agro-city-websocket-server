@@ -89,34 +89,44 @@ class AgroCityWebsocketServer {
         });
 
         this.webSocketServer?.on('connection', async (webSocket: any, username: string) => {
+            console.log('CLIENT CONNECTING: ', username);
+
             const dbConnection = await this.connectionPool.getConnection();
+
+            console.log('DB CONNECTION RECEIVED!');
 
             const rabbitMqChannel = await this.rabbitMqConnection.createChannel();
 
+            console.log('RABBIT MQ CHANNEL CREATED!');
+
             const deviceUid = this.cryptoService.generateSHA1Hash(username);
 
+            console.log('DEVICE RECEIVED UID: ', deviceUid);
+
             await rabbitMqChannel?.assertQueue(deviceUid, { durable: true });
+
+            console.log('RABBIT MQ CHANNEL ASSERTED!');
 
             webSocket.uid = deviceUid;
             webSocket.username = username;
 
             rabbitMqChannel?.consume(deviceUid, (message) => {
-                if (message) {
-                    console.log(message?.content.toString());
+                console.log('CONSUMED MESSAGE: ', message);
+                console.log('CONSUMED MESSAGE FROM: ', webSocket.username);
 
-                    console.log(webSocket.username);
-                    
+                if (message) {
                     webSocket.send(message?.content.toString());
-                
                     rabbitMqChannel?.ack(message);
                 }
             }).then(r => console.log(r));
 
             webSocket.on('message', (data: WebSocket.Data) => {
+                console.log('RECEIVING MESSAGE!');
+
                 try {
                     const dataIn = data?.toString();
 
-                    console.log(dataIn);
+                    console.log('MESSAGE RECEIVED: ', dataIn);
 
                     if (dataIn) {
                         /*if (!process.env.AES128_SECURITY_KEY) {
@@ -131,6 +141,8 @@ class AgroCityWebsocketServer {
 
                         if (decodedDataIn && typeof decodedDataIn === 'object') {
                             const packageType = Object.keys(decodedDataIn).at(0) ?? '';
+
+                            console.log('PACKAGE TYPE: ', packageType);
 
                             const packageParams = decodedDataIn[packageType] ?? [];
 
@@ -203,24 +215,30 @@ class AgroCityWebsocketServer {
             });
 
             webSocket.on('close', async () => {
-                console.log('Client disconnected');
+                console.log('CLIENT DISCONNECTED!');
 
                 dbConnection.release();
 
+                console.log('DB CONNECTION RELEASED!');
+
                 await rabbitMqChannel?.close();
+
+                console.log('RABBIT MQ CHANNEL CLOSED!');
             });
 
-            webSocket.on('error', console.error);
+            webSocket.on('error', (error: any) => {
+                console.log('Socket error:', error.message);
+            });
         });
 
         this.webSocketServer?.on('error', (error: any) => {
-            console.error('WebSocket error:', error);
+            console.error('WebSocket error:', error.message);
         });
     }
 
     public listen() {
         this.server?.listen(8080, '0.0.0.0', () => {
-            console.log('SERVER STARTED LISTENING!');
+            console.log('WEBSOCKET SERVER STARTED LISTENING!');
         });
     }
 }
