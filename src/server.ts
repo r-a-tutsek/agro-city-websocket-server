@@ -25,6 +25,8 @@ class AgroCityWebsocketServer {
     private deviceService: DeviceService;
     private commonService: CommonService;
 
+    private checkBrokenClientsInterval: any;
+
     public async initialize() {
         try {
             dotenv.config();
@@ -228,12 +230,26 @@ class AgroCityWebsocketServer {
 
             webSocket.on('error', (error: any) => {
                 console.log('Socket error:', error.message);
+                webSocket.terminate();
             });
         });
 
         this.webSocketServer?.on('error', (error: any) => {
             console.error('WebSocket error:', error.message);
         });
+
+        if (this.checkBrokenClientsInterval) {
+            clearInterval(this.checkBrokenClientsInterval);
+        }
+
+        this.checkBrokenClientsInterval = setInterval(() => {
+            this.webSocketServer?.clients.forEach((ws: any) => {
+                if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+                    console.log('REMOVING BROKEN CLIENT: ', ws.uid);
+                    ws.terminate();
+                }
+            });
+          }, 5000);
     }
 
     public listen() {
