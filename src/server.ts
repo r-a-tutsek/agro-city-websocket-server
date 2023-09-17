@@ -259,7 +259,11 @@ class AgroCityWebsocketServer {
         }
 
         this.checkBrokenClientsInterval = setInterval(() => {
+            console.log('VERIFY INTERVAL CALLED!');
+
             this.webSocketServer?.clients.forEach((ws: any) => {
+                console.log(ws.uid);
+
                 if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
                     console.log('REMOVING BROKEN CLIENT: ', ws.uid);
                     ws.terminate();
