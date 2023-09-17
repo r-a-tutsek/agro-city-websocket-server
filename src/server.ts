@@ -52,13 +52,21 @@ class AgroCityWebsocketServer {
 
     public async processMain() {
         this.server?.on('upgrade', async (request, socket, head) => {
+            console.log('CONNECTION TRYING TO UPGRADE!');
+
             this.webSocketServer?.handleUpgrade(request, socket, head, async (webSocket: WebSocket) => {
+                console.log('HANDLE UPGRADE BEING CALLED!');
+
                 const dbConnection = await this.connectionPool.getConnection();
+
+                console.log('DB CONNECTION RECEIVED!');
 
                 if (!request?.headers['user-agent'] || !request?.headers['authorization']) {
                     socket?.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
                     socket?.destroy();
                 }
+
+                console.log('HEADERS RECEIVED!');
 
                 const authHeaderParts = this.commonService.decodeBasicAuthHeader(request?.headers['authorization']);
 
@@ -68,6 +76,8 @@ class AgroCityWebsocketServer {
                     return;
                 }
 
+                console.log('AUTH HEADER PARTS DECODED!');
+
                 const deviceType = this.commonService.decodeUserAgentHeader(request.headers['user-agent']);
 
                 if (!deviceType) {
@@ -75,6 +85,8 @@ class AgroCityWebsocketServer {
                     socket?.destroy();
                     return;
                 }
+
+                console.log('DEVICE TYPE DECODED!');
 
                 const device: any = await dbConnection.query('SELECT d.uid, uc.username FROM user_credentials uc JOIN devices d ON uc.device_id = d.id WHERE uc.username = ? AND uc.password = ?', [authHeaderParts?.username, authHeaderParts?.password]);
 
@@ -84,7 +96,11 @@ class AgroCityWebsocketServer {
                     return;
                 }
 
+                console.log('DEVICE FOUND!');
+
                 dbConnection.release();
+
+                console.log('DB CONNECTION RELEASED!');
                 
                 this.webSocketServer?.emit('connection', webSocket, authHeaderParts.username);
             });
