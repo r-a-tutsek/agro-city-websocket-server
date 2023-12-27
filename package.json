@@ -11,6 +11,7 @@
     "author": "r-a-tutsek",
     "license": "ISC",
     "dependencies": {
+        "amqp-connection-manager": "^4.1.14",
         "amqplib": "^0.10.3",
         "base-64": "^1.0.0",
         "dotenv": "^16.0.3",
