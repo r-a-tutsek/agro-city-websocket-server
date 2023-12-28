@@ -51,6 +51,11 @@ export default class CommonService {
         return null;
     }
 
+    encrypt(plainText: string, securityKey: string, outputEncoding: BufferEncoding | undefined) {
+        const cipher = crypto.createCipheriv('aes-128-ecb', securityKey, null);
+        return Buffer.concat([cipher.update(plainText, 'utf8'), cipher.final()]).toString(outputEncoding);
+    }
+
     decrypt(cipherText: NodeJS.ArrayBufferView, securityKey: string, outputEncoding: BufferEncoding | undefined) {
         const cipher = crypto.createDecipheriv('aes-128-ecb', securityKey, null);
         return Buffer.concat([cipher.update(cipherText), cipher.final()]).toString(outputEncoding);

@@ -9,8 +9,6 @@ export default class MysqlConnector implements DbConnector {
     private connectionPool: mysql.Pool;
 
     constructor() {
-        dotenv.config();
-
         this.connectionPool = mysql.createPool({
             host: process.env.DB_HOST,
             user: process.env.DB_USER,

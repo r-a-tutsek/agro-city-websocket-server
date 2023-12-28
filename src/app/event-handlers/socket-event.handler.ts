@@ -9,6 +9,7 @@ import WebSocket from 'ws';
 import RabbitMqService from '../services/rabbit-mq.service';
 import MessageEventHandler from './message-event.handler';
 import { ConfigGetHandler, ConfigHandler, DataHandler, InfoHandler, LogHandler, StatusHandler } from './handlers';
+import LoggerService from '../services/logger.service';
 
 @autoInjectable()
 export default class SocketEventHandler {
@@ -17,31 +18,40 @@ export default class SocketEventHandler {
         private commonService: CommonService,
         private cryptoService: CryptoService,
         private rabbitMqService: RabbitMqService,
-        private deviceRepository: DeviceRepository
+        private loggerService: LoggerService,
+        private deviceRepository: DeviceRepository,
     ) {}
 
     async handleUpgrade(request: IncomingMessage, socket: internal.Duplex, head: Buffer): Promise<[boolean] | [boolean, string]> {
+        this.loggerService.info('UPGRADE: Started handle upgrade.');
+
         if (!request?.headers['user-agent'] || !request?.headers['authorization']) {
+            this.loggerService.warn('UPGRADE: Failed, missing user-agent or authorization headers.');
             return [false];
         }
 
         const authHeaderParts = this.commonService.decodeBasicAuthHeader(request?.headers['authorization']);
 
         if (!authHeaderParts || !authHeaderParts?.username || !authHeaderParts?.password) {
+            this.loggerService.warn('UPGRADE: Failed, decoded header parts username or password is empty.');
             return [false];
         }
 
         const deviceType = this.commonService.decodeUserAgentHeader(request.headers['user-agent']);
 
         if (!deviceType) {
+            this.loggerService.warn('UPGRADE: Failed, decoded user-agent header device type is empty.');
             return [false];
         }
 
         const device: any = await this.deviceRepository.getDeviceByUsernameAndPassword(authHeaderParts.username, authHeaderParts.password);
 
         if (!device || device.length === 0) {
-            return [false];
+            this.loggerService.warn('UPGRADE: Device was not found with the following username: ' + authHeaderParts.username + '.');
+            return [false] ;
         }
+
+        this.loggerService.info('UPGRADE: Verification passed for username: ' + authHeaderParts.username);
 
         return [true, authHeaderParts.username];
     }
@@ -53,59 +63,67 @@ export default class SocketEventHandler {
         webSocket.uid = deviceUid;
         webSocket.username = username;
         webSocket.dbConnection = { instance: dbConnection, isPool: isPool };
-        webSocket.rabbitMqChannel = this.rabbitMqService.createChannel(deviceUid, (message: string) => webSocket.send(message));
+        webSocket.rabbitMqChannel = this.rabbitMqService.createChannel(deviceUid, (message: string) => {
+            if (!process.env.OUTPUT_AES128_SECURITY_KEY) {
+                throw 'Output Security key is missing in config!';
+            }
 
-        webSocket.rabbitMqChannel?.waitForConnect().then(function() {
-            console.log('Listening for RABBIT MQ messages!');
+            webSocket.send(process.env.ENCRYPT_OUTPUT ? this.commonService.encrypt(message, process.env.OUTPUT_AES128_SECURITY_KEY, 'utf8') : message);
+        });
+
+        webSocket.rabbitMqChannel?.waitForConnect().then(() => {
+            this.loggerService.info('RABBITMQ: Started Channel and listening messages for username: ' + webSocket?.username + ', on Channel: ' + webSocket?.uid);
         });
 
         webSocket.on('message', (data: WebSocket.Data) => {
-            console.log('RECEIVING MESSAGE!');
-
             try {
                 let dataIn = data?.toString();
 
-                if (dataIn) {
-                    /*if (!process.env.AES128_SECURITY_KEY) {
-                        throw 'Security key is missing in config!';
-                    }
-
-                    if (process.env.USE_ENCRYPTION && parseInt(process.env.USE_ENCRYPTION) === 1) {
-                        dataIn = this.commonService.decrypt(Buffer.from(dataIn, 'base64'), process.env.AES128_SECURITY_KEY, 'utf8');
-                    }*/
-
-                    const decodedDataIn = this.commonService.tryJsonDecode(dataIn);
-
-                    if (decodedDataIn && typeof decodedDataIn === 'object') {
-                        const packageType = Object.keys(decodedDataIn).at(0) ?? '';
-
-                        const packageParams = decodedDataIn[packageType] ?? [];
-                        
-                        const messageClassName: any = (packageType.toLowerCase() === 'command' ? packageParams : packageType) + 'Handler';
-
-                        const classMap: { [key: string]: any } = {
-                            ConfigGetHandler,
-                            ConfigHandler,
-                            DataHandler,
-                            LogHandler,
-                            InfoHandler,
-                            StatusHandler
-                        };
-
-                        const messageClass = Object.keys(classMap).includes(messageClassName) ? new classMap[messageClassName] : null;
-
-                        if (!messageClass) {
-                            webSocket.send('COMMAND_NOT_IMPLEMENTED');
-                            return;
-                        }
-
-                        new MessageEventHandler(messageClass).handle(webSocket, packageParams);
-                    }
+                if (!dataIn) {
+                    this.loggerService.info('WEBSOCKET: Empty message received for username: ' + webSocket?.username);
+                    return;
                 }
 
-                console.log('MESSAGE RECEIVED: ', dataIn);
-            } catch(error) {
-                console.log(error);
+                if (!process.env.INPUT_AES128_SECURITY_KEY) {
+                    throw 'Input Security key is missing in config!';
+                }
+
+                if (process.env.DECRYPT_INPUT && parseInt(process.env.DECRYPT_INPUT) === 1) {
+                    dataIn = this.commonService.decrypt(Buffer.from(dataIn, 'base64'), process.env.INPUT_AES128_SECURITY_KEY, 'utf8');
+                }
+
+                const decodedDataIn = this.commonService.tryJsonDecode(dataIn);
+
+                if (decodedDataIn && typeof decodedDataIn === 'object') {
+                    const packageType = Object.keys(decodedDataIn).at(0) ?? '';
+
+                    const packageParams = decodedDataIn[packageType] ?? [];
+                    
+                    const messageClassName: any = (packageType.toLowerCase() === 'command' ? packageParams : packageType) + 'Handler';
+
+                    const classMap: { [key: string]: any } = {
+                        ConfigGetHandler,
+                        ConfigHandler,
+                        DataHandler,
+                        LogHandler,
+                        InfoHandler,
+                        StatusHandler
+                    };
+
+                    const messageClass = Object.keys(classMap).includes(messageClassName) ? new classMap[messageClassName] : null;
+
+                    if (!messageClass) {
+                        this.loggerService.error('WEBSOCKET: Command / Package Type handling is not implemented: ' + messageClassName);
+                        webSocket.send('COMMAND_NOT_IMPLEMENTED');
+                        return;
+                    }
+
+                    new MessageEventHandler(messageClass).handle(webSocket, packageParams);
+
+                    this.loggerService.info('WEBSOCKET: Message handled.');
+                }
+            } catch(error: any) {
+                this.loggerService.error('WEBSOCKET: An error occurred while receiving message through socket: ' + error.message);
             }
         });
 
@@ -117,20 +135,26 @@ export default class SocketEventHandler {
                 } else {
                     webSocket.dbConnection.instance.end();
                 }
+
+                this.loggerService.warn('WEBSOCKET: Closed Websocket DB Connection for username: ' + webSocket?.username);
             }
 
             if (webSocket?.rabbitMqChannel) {
                 webSocket.rabbitMqChannel.close();
+
+                this.loggerService.warn('WEBSOCKET: Closed Websocket Rabbit MQ channel for username: ' + webSocket?.username);
             }
+
+            this.loggerService.warn('WEBSOCKET: Closing Websocket connection for username: ' + webSocket?.username);
         });
 
         webSocket.on('error', (error: any) => {
-            console.log('Socket error:', error.message);
+            this.loggerService.error('WEBSOCKET: An error occurred in a connected Websocket, terminating: ' + error.message);
             webSocket.terminate();
         });
     }
 
     handleError(error: any) {
-        console.error('Webocket server error: ', error);
+        this.loggerService.error('WEBSOCKET SERVER: An error occurred in the Websocket Server: ' + error.message);
     }
 }

@@ -8,7 +8,7 @@ export default class RabbitMqService {
     private connection: IAmqpConnectionManager;
 
     connect() {
-        if (!process.env.RABBIT_MQ_HOST_URL || !process.env.RABBIT_MQ_PORT || !process.env.RABBIT_MQ_RETRY_INTERVAL) {
+        if (!process.env.RABBIT_MQ_HOST_URL || !process.env.RABBIT_MQ_PORT) {
             throw 'Missing Rabbit Mq Configuration!';
         }
 
