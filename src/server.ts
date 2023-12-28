@@ -1,9 +1,7 @@
 import "reflect-metadata";
 import { createServer, Server } from 'http';
 import WebSocket from 'ws';
-import amqp from 'amqp-connection-manager';
 import { container } from 'tsyringe';
-import dotenv from 'dotenv';
 
 import DbConnector from './dbal/interfaces/db-connector.interface';
 import MysqlConnector from "./dbal/mysql.connector";

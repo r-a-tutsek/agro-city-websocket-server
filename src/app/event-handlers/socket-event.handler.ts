@@ -1,4 +1,3 @@
-
 import { IncomingMessage } from 'http';
 import internal from 'stream';
 import { autoInjectable } from 'tsyringe';
@@ -8,6 +7,8 @@ import CryptoService from '../services/crypto.service';
 import DbConnector from '../../dbal/interfaces/db-connector.interface';
 import WebSocket from 'ws';
 import RabbitMqService from '../services/rabbit-mq.service';
+import MessageEventHandler from './message-event.handler';
+import { ConfigGetHandler, ConfigHandler, DataHandler, InfoHandler, LogHandler, StatusHandler } from './handlers';
 
 @autoInjectable()
 export default class SocketEventHandler {
@@ -62,7 +63,45 @@ export default class SocketEventHandler {
             console.log('RECEIVING MESSAGE!');
 
             try {
-                const dataIn = data?.toString();
+                let dataIn = data?.toString();
+
+                if (dataIn) {
+                    /*if (!process.env.AES128_SECURITY_KEY) {
+                        throw 'Security key is missing in config!';
+                    }
+
+                    if (process.env.USE_ENCRYPTION && parseInt(process.env.USE_ENCRYPTION) === 1) {
+                        dataIn = this.commonService.decrypt(Buffer.from(dataIn, 'base64'), process.env.AES128_SECURITY_KEY, 'utf8');
+                    }*/
+
+                    const decodedDataIn = this.commonService.tryJsonDecode(dataIn);
+
+                    if (decodedDataIn && typeof decodedDataIn === 'object') {
+                        const packageType = Object.keys(decodedDataIn).at(0) ?? '';
+
+                        const packageParams = decodedDataIn[packageType] ?? [];
+                        
+                        const messageClassName: any = (packageType.toLowerCase() === 'command' ? packageParams : packageType) + 'Handler';
+
+                        const classMap: { [key: string]: any } = {
+                            ConfigGetHandler,
+                            ConfigHandler,
+                            DataHandler,
+                            LogHandler,
+                            InfoHandler,
+                            StatusHandler
+                        };
+
+                        const messageClass = Object.keys(classMap).includes(messageClassName) ? new classMap[messageClassName] : null;
+
+                        if (!messageClass) {
+                            webSocket.send('COMMAND_NOT_IMPLEMENTED');
+                            return;
+                        }
+
+                        new MessageEventHandler(messageClass).handle(webSocket, packageParams);
+                    }
+                }
 
                 console.log('MESSAGE RECEIVED: ', dataIn);
             } catch(error) {
