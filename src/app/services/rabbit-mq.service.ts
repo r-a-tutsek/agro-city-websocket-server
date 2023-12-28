@@ -16,7 +16,7 @@ export default class RabbitMqService {
     }
 
     createChannel(deviceUid: string, callback: any) {
-        this.connection.createChannel({
+        return this.connection.createChannel({
             setup: (channel: any) => {
                 return Promise.all([
                     channel.assertQueue(deviceUid, { durable: true }),

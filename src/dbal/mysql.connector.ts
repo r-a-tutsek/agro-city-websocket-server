@@ -26,19 +26,19 @@ export default class MysqlConnector implements DbConnector {
 
     async getConnection(): Promise<any> {
         try {
-            return await this.connectionPool.getConnection();
+            return [await this.connectionPool.getConnection(), true];
         } catch(error) {
-            return mysql.createConnection({
+            return [await mysql.createConnection({
                 host: process.env.DB_HOST,
                 user: process.env.DB_USER,
                 password: process.env.DB_PASSWORD,
                 database: process.env.DB_NAME
-            });
+            }), false];
         }
     }
 
     async query(sql: string, values?: any[]): Promise<any> {
-        const connection = await this.getConnection();
+        const [connection, isPool] = await this.getConnection();
 
         try {
             const [results, fields] = await connection.query(sql, values);

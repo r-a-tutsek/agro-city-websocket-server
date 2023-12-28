@@ -47,13 +47,12 @@ export default class SocketEventHandler {
 
     async handleConnection(webSocket: any, username: string, dbConnector: DbConnector) {
         const deviceUid = this.cryptoService.generateSHA1Hash(username);
+        const [dbConnection, isPool] = await dbConnector.getConnection();
 
         webSocket.uid = deviceUid;
         webSocket.username = username;
-        webSocket.dbConnection = await dbConnector.getConnection();
-        webSocket.rabbitMqChannel = this.rabbitMqService.createChannel(deviceUid, (message: string) => {
-            webSocket.send(message);
-        });
+        webSocket.dbConnection = { instance: dbConnection, isPool: isPool };
+        webSocket.rabbitMqChannel = this.rabbitMqService.createChannel(deviceUid, (message: string) => webSocket.send(message));
 
         webSocket.rabbitMqChannel?.waitForConnect().then(function() {
             console.log('Listening for RABBIT MQ messages!');
@@ -73,7 +72,12 @@ export default class SocketEventHandler {
 
         webSocket.on('close', async () => {
             if (webSocket?.dbConnection) {
-                webSocket.dbConnection.release();
+                // Instanceof does not want to work for some reason, so this is forced...
+                if (webSocket?.dbConnection.isPool) {
+                    webSocket.dbConnection.instance.release();
+                } else {
+                    webSocket.dbConnection.instance.end();
+                }
             }
 
             if (webSocket?.rabbitMqChannel) {
