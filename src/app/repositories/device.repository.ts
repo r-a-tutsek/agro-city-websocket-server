@@ -12,6 +12,14 @@ export default class DeviceRepository {
     }
 
     getDeviceByUsernameAndPassword = async (username?: string, password?: string) => {
-        return this.dbConnector.query('SELECT d.uid, uc.username FROM user_credentials uc JOIN devices d ON uc.device_id = d.id WHERE uc.username = ? AND uc.password = ?', [username, password]);
+        const [connection, isPool] = await this.dbConnector.getConnection();
+
+        const result = connection.query('SELECT d.uid, uc.username FROM user_credentials uc JOIN devices d ON uc.device_id = d.id WHERE uc.username = ? AND uc.password = ?', [username, password]);
+
+        if (isPool) {
+            connection.release();
+        }
+
+        return result;
     }
 }

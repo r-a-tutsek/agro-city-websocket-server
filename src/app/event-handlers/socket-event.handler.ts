@@ -60,6 +60,12 @@ export default class SocketEventHandler {
         const deviceUid = this.cryptoService.generateSHA1Hash(username);
         const [dbConnection, isPool] = await dbConnector.getConnection();
 
+        if (!dbConnection) {
+            webSocket.send('TOO_MANY_CONNECTIONS');
+            webSocket.terminate();
+            return;
+        }
+
         webSocket.uid = deviceUid;
         webSocket.username = username;
         webSocket.dbConnection = { instance: dbConnection, isPool: isPool };
@@ -68,7 +74,7 @@ export default class SocketEventHandler {
                 throw 'Output Security key is missing in config!';
             }
 
-            webSocket.send(process.env.ENCRYPT_OUTPUT ? this.commonService.encrypt(message, process.env.OUTPUT_AES128_SECURITY_KEY, 'utf8') : message);
+            webSocket.send(process.env.ENCRYPT_OUTPUT && parseInt(process.env.ENCRYPT_OUTPUT) === 1 ? this.commonService.encrypt(message, process.env.OUTPUT_AES128_SECURITY_KEY, 'utf8') : message);
         });
 
         webSocket.rabbitMqChannel?.waitForConnect().then(() => {
