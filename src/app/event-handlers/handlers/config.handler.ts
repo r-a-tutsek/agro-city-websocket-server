@@ -6,6 +6,6 @@ import moment from "moment";
 export class ConfigHandler implements MessageStrategy {
 
     handle(webSocket: any, packageParams: any): void {
-        webSocket.dbConnection.instance?.query('UPDATE devices SET configuration = ?, updated_at = ? WHERE uid = ?', [JSON.stringify(packageParams), moment().format(process.env.DATE_TIME_FORMAT_SQL), webSocket.username]);
+        webSocket.dbConnection?.query('UPDATE devices SET configuration = ?, updated_at = ? WHERE uid = ?', [JSON.stringify(packageParams), moment().format(process.env.DATE_TIME_FORMAT_SQL), webSocket.username]);
     }
 }

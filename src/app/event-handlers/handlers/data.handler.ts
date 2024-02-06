@@ -6,6 +6,6 @@ import moment from "moment";
 export class DataHandler implements MessageStrategy {
 
     handle(webSocket: any, packageParams: any): void {
-        webSocket.dbConnection.instance?.query('INSERT INTO tmp_device_data(device_uid, data, created_at) VALUES (?, ?, ?)', [webSocket.username, JSON.stringify(packageParams), moment().unix()]);
+        webSocket.dbConnection?.query('INSERT INTO tmp_device_data(device_uid, data, created_at) VALUES (?, ?, ?)', [webSocket.username, JSON.stringify(packageParams), moment().unix()]);
     }
 }

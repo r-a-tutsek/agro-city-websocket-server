@@ -8,7 +8,7 @@ export class ConfigGetHandler implements MessageStrategy {
     constructor(private commonService: CommonService) {}
 
     async handle(webSocket: any, packageParams: any) {
-        const result = (await webSocket.dbConnection.instance.query('SELECT configuration FROM devices WHERE uid = ?', [webSocket.username]))?.at(0);
+        const result = (await webSocket.dbConnection.query('SELECT configuration FROM devices WHERE uid = ?', [webSocket.username]))?.at(0);
 
         if (result) {
             const response = '{"Config":' + (result?.at(0)?.configuration ?? '') + '}';

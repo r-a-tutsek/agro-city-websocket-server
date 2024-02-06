@@ -58,7 +58,7 @@ export default class SocketEventHandler {
 
     async handleConnection(webSocket: any, username: string, dbConnector: DbConnector) {
         const deviceUid = this.cryptoService.generateSHA1Hash(username);
-        const [dbConnection, isPool] = await dbConnector.getConnection();
+        const dbConnection = await dbConnector.getConnection();
 
         if (!dbConnection) {
             webSocket.send('TOO_MANY_CONNECTIONS');
@@ -68,7 +68,7 @@ export default class SocketEventHandler {
 
         webSocket.uid = deviceUid;
         webSocket.username = username;
-        webSocket.dbConnection = { instance: dbConnection, isPool: isPool };
+        webSocket.dbConnection = dbConnection;
         webSocket.rabbitMqChannel = this.rabbitMqService.createChannel(deviceUid, (message: string) => {
             if (!process.env.OUTPUT_AES128_SECURITY_KEY) {
                 throw 'Output Security key is missing in config!';
@@ -135,12 +135,7 @@ export default class SocketEventHandler {
 
         webSocket.on('close', async () => {
             if (webSocket?.dbConnection) {
-                // Instanceof does not want to work for some reason, so this is forced...
-                if (webSocket?.dbConnection.isPool) {
-                    webSocket.dbConnection.instance.release();
-                } else {
-                    webSocket.dbConnection.instance.end();
-                }
+                webSocket.dbConnection.end();
 
                 this.loggerService.warn('WEBSOCKET: Closed Websocket DB Connection for username: ' + webSocket?.username);
             }
